@@ -1,0 +1,141 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Creates the following resources:
+    - LoadBalncers
+
+Parameters:
+
+  ENVNameParameter:
+    Type: String
+    AllowedValues:
+      - prod
+      - stage
+      - qa
+      - demo
+    Description: Enter Env.
+  
+  ProductNameParameter:
+    Type: String
+    Description: Enter Product for tagging purpose
+
+  EmptyValue:
+    Type: String
+    Description: Don't Enter Anything.
+  
+
+Resources:
+
+  AWSLBMainAppSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: MainApp Security Group
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0      
+      VpcId: 
+        Fn::ImportValue:
+          !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "AccountVPC"  ] ]
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "MainAppLBSG"] ]
+
+  ApplicationLBMain:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties: 
+      IpAddressType: ipv4
+      Name: 
+        !Join [ "-", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "aws-main-lb"] ]
+      Scheme: internet-facing
+      SecurityGroups: 
+        - Ref: AWSLBMainAppSG
+      Subnets: 
+        - Fn::ImportValue:
+            !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic1"  ] ]
+        - Fn::ImportValue:
+            !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic2"  ] ]
+        - Fn::ImportValue:
+            !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic3"  ] ]
+        - Fn::ImportValue:
+            !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic4"  ] ]
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ "-", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "lb", "main"] ]
+
+  NetworkLBGuacd:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties: 
+      IpAddressType: ipv4
+      Name: 
+        !Join [ "-", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "aws-lb-internal"] ]
+      Scheme: internal
+      Subnets: 
+        - Fn::ImportValue:
+            !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPrivate1"  ] ]
+        - Fn::ImportValue:
+            !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPrivate2"  ] ]
+        - Fn::ImportValue:
+            !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPrivate3"  ] ]
+        - Fn::ImportValue:
+            !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPrivate4"  ] ]
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ "-", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "lb", "internal"] ]
+      Type: network
+
+Outputs:
+
+  AWSLBMAIN:
+    Description: The AWS ALB MAIN
+    Value: !Ref ApplicationLBMain
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter", ApplicationLBMain] ]
+
+  AWSLBGUACD:
+    Description: The AWS NLB GUACD
+    Value: !Ref NetworkLBGuacd
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter", NetworkLBGuacd] ]
+
+  
+  AWSLBMAINDNS:
+    Description: The  AWS ALB MAIN DNS
+    Value: !GetAtt ApplicationLBMain.DNSName
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter", ApplicationLBMain, DNS ] ]
+
+  AWSLBGUACDDNS:
+    Description: The  AWS NLB GUACD DNS
+    Value: !GetAtt  NetworkLBGuacd.DNSName
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter",  NetworkLBGuacd, DNS ] ]
+
+  EmptyValuelb:
+    Description: The Empty Value
+    Value: "Empty"

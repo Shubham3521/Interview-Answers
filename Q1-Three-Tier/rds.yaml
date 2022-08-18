@@ -1,0 +1,328 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Creates the following resources:
+    - RDS
+
+Parameters:
+
+  ENVNameParameter:
+    Type: String
+    AllowedValues:
+      - prod
+      - stage
+      - qa
+      - demo
+
+    Description: Enter Env.
+  
+  ProductNameParameter:
+    Type: String
+    Description: Enter Product for tagging purpose.
+  
+  EmptyValue:
+    Type: String
+    Description: Don't Enter Anything.
+
+
+  RDSxxxxAppUserParameter:
+    Type: String
+    Default: xxxxxxxx
+    Description: Enter xxxxApp DB user.
+
+  RDSxxxxAppPasswordParameter:
+    Type: String
+    Default: "xxxxxxxx"
+    Description: Enter xxxxApp password.
+
+  RDSInitialDBxxxxAppParameter:
+    Type: String
+    Default: xxxxx
+    Description: Enter Initial DB name.
+
+
+  RDSxxxxxxxxUserParameter:
+    Type: String
+    Default: "xxxxxxxx"
+    Description: Enter xxxxxxxx DB user.
+  
+  RDSxxxxxxxxPasswordParameter:
+    Type: String
+    Default: "xxxxxxxx"
+    Description: Enter xxxxxxxx DB password.
+
+  RDSInitialDBxxxxxxxxParameter:
+    Type: String
+    Default: xxxxxxxx_db
+    Description: Enter Initial DB name.
+
+
+
+Resources:
+
+  RDSxxxxAppDBParameterGroup:
+    Type: 'AWS::RDS::DBParameterGroup'
+    Properties:
+      Description: xxxxApp Parameter Group
+      Family: xxxxxxxx11
+      Parameters:
+        idle_in_transaction_session_timeout	: 86400000
+      Tags:
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "rds", "xxxxapp-parameter-group"] ]
+
+
+
+  DBxxxxAppSecurityGroup:
+    Type: AWS::RDS::DBSecurityGroup
+    Properties:
+      DBSecurityGroupIngress:
+         CIDRIP: "10.0.0.0/16"
+      GroupDescription: database access
+      EC2VpcId:
+        Fn::ImportValue:
+          !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "AccountVPC"  ] ]
+      Tags:
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "DBxxxxAppSecurityGroup"] ]
+      
+  DBSubnetGroupxxxxApp:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties: 
+      DBSubnetGroupDescription: String
+      DBSubnetGroupName: 
+        !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "rds", "xxxxpp"] ]
+      SubnetIds: 
+        - Fn::ImportValue:
+            !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPrivate1"  ] ]
+        - Fn::ImportValue:
+            !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPrivate2"  ] ]
+        - Fn::ImportValue:
+            !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPrivate3"  ] ]
+        - Fn::ImportValue:
+            !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPrivate4"  ] ]
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "subnetgroup-xxxxapp"] ]
+
+  RDSxxxxApp:
+    Type: AWS::RDS::DBInstance
+    Properties: 
+      AllocatedStorage: "20"
+      AllowMajorVersionUpgrade: true
+      AutoMinorVersionUpgrade: true
+      AvailabilityZone: us-east-1a 
+      BackupRetentionPeriod: 35
+      CopyTagsToSnapshot: true
+      DBInstanceClass: "db.t2.small"
+      DBInstanceIdentifier: 
+        !Join [ "-", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "rds", "xxxxapp"] ]
+      DBName:
+        Ref: RDSInitialDBxxxxAppParameter
+      DBParameterGroupName: 
+        Ref: RDSxxxxAppDBParameterGroup
+      DBSecurityGroups: 
+        - Ref: DBxxxxAppSecurityGroup
+      DeleteAutomatedBackups: true
+      DeletionProtection: false
+      EnableCloudwatchLogsExports: 
+        - xxxxxxxxql
+      EnablePerformanceInsights: false
+      Engine: "xxxxxxxx"
+      EngineVersion: "11.10"
+      DBSubnetGroupName:
+        Ref: DBSubnetGroupxxxxApp
+      MasterUsername:
+        Ref: RDSxxxxAppUserParameter
+      MasterUserPassword:
+        Ref: RDSxxxxAppPasswordParameter
+      PubliclyAccessible: true
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "rds", "xxxxapp"] ]
+
+  RDSGuacAppDBParameterGroup:
+    Type: 'AWS::RDS::DBParameterGroup'
+    Properties:
+      Description: GuacApp Parameter Group
+      Family: xxxxxxxx11
+      Parameters:
+        idle_in_transaction_session_timeout	: 86400000
+      Tags:
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "rds", "xxxxxxxx-parameter-group"] ]
+
+  DBGuacAppSecurityGroup:
+    Type: AWS::RDS::DBSecurityGroup
+    Properties:
+      DBSecurityGroupIngress:
+         CIDRIP: "10.0.0.0/16"
+      GroupDescription: database access
+      EC2VpcId:
+        Fn::ImportValue:
+          !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "AccountVPC"  ] ]
+      Tags:
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "DBxxxxxxxxSecurityGroup"] ]
+
+  DBSubnetGroupGuacApp:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties: 
+      DBSubnetGroupDescription: "guacapp"
+      DBSubnetGroupName:
+        !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "rds", "guacapp"] ]
+      SubnetIds: 
+        - Fn::ImportValue:
+            !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPrivate1"  ] ]
+        - Fn::ImportValue:
+            !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPrivate2"  ] ]
+        - Fn::ImportValue:
+            !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPrivate3"  ] ]
+        - Fn::ImportValue:
+            !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPrivate4"  ] ]
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "subnetgroup-xxxxapp"] ]
+
+  RDSGuacApp:
+    Type: AWS::RDS::DBInstance
+    Properties: 
+      AllocatedStorage: "20"
+      AllowMajorVersionUpgrade: true
+      AutoMinorVersionUpgrade: true
+      AvailabilityZone: us-east-1a 
+      BackupRetentionPeriod: 35
+      CopyTagsToSnapshot: true
+      DBInstanceClass: "db.t2.small"
+      DBInstanceIdentifier:
+        !Join [ "-", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "rds", "xxxxxxxx"] ]
+      DBName:
+        Ref: RDSInitialDBxxxxxxxxParameter
+      DBParameterGroupName: 
+        Ref: RDSGuacAppDBParameterGroup
+      DBSecurityGroups: 
+        - Ref: DBGuacAppSecurityGroup
+      DeleteAutomatedBackups: true
+      DeletionProtection: false
+      EnableCloudwatchLogsExports: 
+        - xxxxxxxxql
+      EnablePerformanceInsights: true
+      Engine: "xxxxxxxx"
+      EngineVersion: "11.10"
+      DBSubnetGroupName:
+        Ref: DBSubnetGroupGuacApp
+      MasterUsername: "xxxxxxxx"
+      MasterUserPassword: "xxxxxxxx"
+      PubliclyAccessible: True
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "rds", "xxxxxxxx"] ]     
+
+Outputs:
+
+  RDSxxxxAPPHOST:
+    Description: RDS HOST xxxx APP
+    Value: !GetAtt  RDSxxxxApp.Endpoint.Address
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter",  RDSxxxxApp, DNS ] ]
+
+  RDSGuacdHOST:
+    Description: RDS HOST RDSGuacApp
+    Value: !GetAtt  RDSGuacApp.Endpoint.Address
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter",  RDSGuacApp, DNS ] ]
+
+  RDSxxxxAppUser:
+    Description: RDS User RDSxxxxAppUser
+    Value: !Ref "RDSxxxxAppUserParameter"
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter",  RDSxxxxApp, User ] ]
+
+  RDSGuacdUser:
+    Description: RDS User RDSGuacAppUser
+    Value: !Ref "RDSxxxxxxxxUserParameter"
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter",  RDSGuacApp, User ] ]
+
+  RDSxxxxAppPassword:
+    Description: RDS Password RDSxxxxAppPassword
+    Value: !Ref "RDSxxxxAppPasswordParameter"
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter",  RDSxxxxApp, Password ] ]
+
+  RDSGuacdPassword:
+    Description: RDS Password RDSGuacPassword
+    Value: !Ref "RDSxxxxxxxxPasswordParameter"
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter",  RDSGuacApp, Password ] ]            
+          
+  RDSxxxxAppDatabase:
+    Description: RDS Database RDSxxxxAppDatabase
+    Value: !Ref "RDSInitialDBxxxxAppParameter"
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter",  RDSxxxxApp, Database] ]
+
+  RDSGuacAppDatabase:
+    Description: RDS Database RDSxxxxGuacDatabase
+    Value: !Ref "RDSInitialDBxxxxxxxxParameter"
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter",  RDSGuacApp, Database] ]
+
+  EmptyValuerds:
+    Description: The Empty Value
+    Value: "Empty"

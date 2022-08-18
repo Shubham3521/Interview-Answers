@@ -1,0 +1,347 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Creates the following resources:
+    - TaskDefinition
+
+Parameters:
+
+  ENVNameParameter:
+    Type: String
+    AllowedValues:
+      - prod
+      - stage
+      - qa
+      - demo
+
+    Description: Enter Env.
+  
+  ProductNameParameter:
+    Type: String
+    Description: Enter Product for tagging purpose.
+
+  EmptyValuerds:
+    Type: String
+    Description: Don't Enter Anything.
+
+  AWSACCESSKEYID:
+    Default: sdksajdklsdk
+    Type: String
+    Description: Enter Product for tagging purpose.
+
+  AWSSECRETACCESSKEY:
+    Default: "kajskdasjk"
+    Type: String
+    Description: Enter Product for tagging purpose.
+
+
+  S3LINKEXPIRETIME:
+    Type: String
+    Default: "10"
+    Description: Enter URL PATH.
+
+
+  S3BUCKET:
+    Type: String
+    Default: "ToEnter"
+    Description: Enter URL PATH.
+
+
+    
+
+
+Resources:
+
+  WebAppTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      Family:
+        !Join [ "-", [Ref: ProductNameParameter,!Ref "ENVNameParameter", "xxxx-web"] ]
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: "arn:aws:iam::xxxxxxx:role/ecsTaskExecutionRole"
+      ContainerDefinitions: 
+        - Environment:
+            - Name: AWS_ACCESS_KEY_ID
+              Value: !Ref "AWSACCESSKEYID"
+            - Name: AWS_SECRET_ACCESS_KEY
+              Value: !Ref "AWSSECRETACCESSKEY"
+            - Name: S3_LINK_EXPIRE_TIME
+              Value: !Ref "S3LINKEXPIRETIME"
+            - Name: S3_BUCKET
+              Value: !Ref "S3BUCKET"
+
+
+          WorkingDirectory: "/usr/src/app"
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 80
+              Protocol: tcp
+          Image: "xxxxxxxxxxx.dkr.ecr.xxxx.amazonaws.com/vm-xxxx-main"
+          Name: xxxxweb
+          LogConfiguration:
+            LogDriver: awslogs
+            Options: 
+              awslogs-group:  !Ref "WEBAPPCloudWatchLogsGroup"
+              awslogs-region: "xxxx"
+              awslogs-stream-prefix: "webapp"
+      Cpu: 1024
+      Memory: 2048
+
+
+
+  WEBAPPCloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join [ "-", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",webapp] ]
+      RetentionInDays: 365
+
+
+
+  WorkerAppTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      Family:
+        !Join [ "-", [Ref: ProductNameParameter, !Ref "ENVNameParameter","xxxx-worker"] ]
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Volumes:
+        - EFSVolumeConfiguration:
+            FilesystemId:
+              Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",EFS ]]
+            RootDirectory: /
+          Name: EFSVolume
+      ExecutionRoleArn: "arn:aws:iam::xxxxxxxxxxx:role/ecsTaskExecutionRole"
+
+      ContainerDefinitions: 
+        - Environment:
+            - Name: AWS_ACCESS_KEY_ID
+              Value: !Ref "AWSACCESSKEYID"
+            - Name: AWS_SECRET_ACCESS_KEY
+              Value: !Ref "AWSSECRETACCESSKEY"
+
+            - Name: POSTGRES_DB
+              Value:
+                Fn::ImportValue:
+                  !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",RDSMainApp,Database] ]
+            - Name: POSTGRES_HOST
+              Value:
+                Fn::ImportValue:
+                  !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",RDSMainApp,DNS] ]
+            - Name: POSTGRES_PASSWORD
+              Value:
+                Fn::ImportValue:
+                  !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",RDSMainApp,Password] ]
+            - Name: POSTGRES_USER
+              Value:
+                Fn::ImportValue:
+                  !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",RDSMainApp,User ]]
+            - Name: POSTGRES_PORT	
+              Value: 5432
+            - Name: REDIS_CHANNEL_LAYER
+              Value: 
+                Fn::ImportValue:
+                  !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",Redis,DNS  ] ]
+
+          Image: "xxxxxxxxxxx.dkr.ecr.xxxx.amazonaws.com/vm-xxxx-main"
+          MountPoints:
+            - ContainerPath: "/usr/src/app/key"
+              ReadOnly: true
+              SourceVolume: EFSVolume
+          Name: xxxxworker
+          LogConfiguration:
+            LogDriver: awslogs
+            Options: 
+              awslogs-group:  !Ref "WORKERAPPCloudWatchLogsGroup"
+              awslogs-region: "xxxx"
+              awslogs-stream-prefix: "workerapp"
+      Cpu: 1024
+      Memory: 2048
+
+  WORKERAPPCloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join [ "-", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",workerapp] ]
+      RetentionInDays: 365
+
+  GuacamoleUIDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      Family:
+        !Join [ "-", [Ref: ProductNameParameter, !Ref "ENVNameParameter","guacamole-ui"] ]
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: "arn:aws:iam::xxxxxxxxxxx:role/ecsTaskExecutionRole"
+      ContainerDefinitions: 
+        - Environment:
+            - Name: GUACD_HOSTNAME
+              Value:
+                Fn::ImportValue:
+                  !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",NetworkLBGuacd,DNS] ]
+            - Name: GUACD_PORT
+              Value: 4822
+            - Name: POSTGRES_DATABASE
+              Value:
+                Fn::ImportValue:
+                  !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",RDSGuacApp,Database] ]
+            - Name: POSTGRES_HOSTNAME
+              Value:
+                Fn::ImportValue:
+                  !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",RDSGuacApp,DNS] ]
+            - Name: POSTGRES_PASSWORD
+              Value:
+                Fn::ImportValue:
+                  !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",RDSGuacApp,Password] ]
+            - Name: POSTGRES_USER
+              Value:
+                Fn::ImportValue:
+                  !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",RDSGuacApp,User ]]
+          PortMappings:
+            - ContainerPort: 8080
+              HostPort: 8080
+              Protocol: tcp
+          Image:
+            !Join [ ":", [ "xxxxxxxxxxx.dkr.ecr.xxxx.amazonaws.com/guacamole-ui",demo] ]
+          Name: guacamole-ui
+          LogConfiguration:
+            LogDriver: awslogs
+            Options: 
+              awslogs-group:  !Ref "GuacamoleUICloudWatchLogsGroup"
+              awslogs-region: "xxxx"
+              awslogs-stream-prefix: "guacamole-ui"
+      Cpu: 2048
+      Memory: 4096
+
+
+  GuacamoleUICloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join [ "-", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",guacamole-ui] ]
+  
+  GuacdDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      Family:
+        !Join [ "-", [Ref: ProductNameParameter, !Ref "ENVNameParameter", "guacd"] ]
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: "arn:aws:iam::xxxxxxxxxxx:role/ecsTaskExecutionRole"
+      ContainerDefinitions: 
+        - PortMappings:
+            - ContainerPort: 4822
+              HostPort: 4822
+              Protocol: tcp
+          Image:
+            !Join [ ":", [ "xxxxxxxxxxx.dkr.ecr.xxxx.amazonaws.com/guacamole-daemon",latest] ]
+          Name: guacd
+          LogConfiguration:
+            LogDriver: awslogs
+            Options: 
+              awslogs-group:  !Ref "GuacdCloudWatchLogsGroup"
+              awslogs-region: "xxxx"
+              awslogs-stream-prefix: "guacd"
+      Cpu: 2048
+      Memory: 4096
+
+  GuacdCloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join [ "-", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",guacd] ]
+
+  BeatTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      Family:
+        !Join [ "-", [Ref: ProductNameParameter,!Ref "ENVNameParameter", "beat"] ]
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: "arn:aws:iam::xxxxxxxxxxx:role/ecsTaskExecutionRole"
+
+      ContainerDefinitions: 
+        - Environment:
+            - Name: AWS_ACCESS_KEY_ID
+              Value: !Ref "AWSACCESSKEYID"
+            - Name: AWS_SECRET_ACCESS_KEY
+              Value: !Ref "AWSSECRETACCESSKEY"
+            - Name: CDR_IP
+              Value: 10.0.0.0/16
+ 
+            - Name: POSTGRES_DB
+              Value:
+                Fn::ImportValue:
+                  !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",RDSMainApp,Database] ]
+            - Name: POSTGRES_HOST
+              Value:
+                Fn::ImportValue:
+                  !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",RDSMainApp,DNS] ]
+            - Name: POSTGRES_PASSWORD
+              Value:
+                Fn::ImportValue:
+                  !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",RDSMainApp,Password] ]
+            - Name: POSTGRES_USER
+              Value:
+                Fn::ImportValue:
+                  !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",RDSMainApp,User ]]
+            - Name: POSTGRES_PORT	
+              Value: 5432
+            - Name: REDIS_CHANNEL_LAYER
+              Value: 
+                Fn::ImportValue:
+                  !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",Redis,DNS  ] ]
+          Name: xxxxbeat
+          Image:
+            !Join [ ":", [ "xxxxxxxxxxx.dkr.ecr.xxxx.amazonaws.com/vm-automation-workerapp",automation] ]
+          LogConfiguration:
+            LogDriver: awslogs
+            Options: 
+              awslogs-group:  !Ref "BeatCloudWatchLogsGroup"
+              awslogs-region: "xxxx"
+              awslogs-stream-prefix: "beat"
+      Cpu: 1024
+      Memory: 2048
+
+  BeatCloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join [ "-", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter",beat] ]
+
+Outputs:
+
+  WEBAPPTDARN:
+    Description: WEBAPPTDARN
+    Value: !Ref WebAppTaskDefinition
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter", WebApp, TaskDefinition ] ]
+
+  WORKERAPPTDARN:
+    Description: WORKERAPPTDARN
+    Value: !Ref WorkerAppTaskDefinition
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter", WorkerApp, TaskDefinition ] ]
+            
+  BEATTDARN:
+    Description: BEATTDARN
+    Value: !Ref BeatTaskDefinition
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter", Beat, TaskDefinition ] ]   
+
+  GuacdARN:
+    Description: GuacdDefinition
+    Value: !Ref GuacdDefinition
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter", Guacd, TaskDefinition ] ]       
+
+  GuacamoleUIARN:
+    Description: GuacamoleUIARN
+    Value: !Ref GuacamoleUIDefinition
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter", Guacamole, TaskDefinition ] ]
+
+  EmptyValuetd:
+    Description: The Empty Value
+    Value: Empty

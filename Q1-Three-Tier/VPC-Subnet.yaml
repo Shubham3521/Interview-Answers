@@ -1,0 +1,398 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  Creates the following resources:
+    - An VPC
+    - Subnet
+    - RouteTable
+    - InternetGateway
+    - VPCGatewayAttachment
+    - SubnetRouteTableAssociation
+    - InternetGatewayAttachment
+    - CustomRoute
+
+
+Parameters:
+
+  ENVNameParameter:
+    Type: String
+    AllowedValues:
+      - prod
+      - stage
+      - qa
+      - demo
+    Description: Enter Env.
+  
+  ProductNameParameter:
+    Type: String
+    Description: Enter Product for tagging purpose.
+
+
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties: 
+      CidrBlock: 172.0.0.0/16
+      EnableDnsHostnames: "True"
+      EnableDnsSupport: "True"
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "vpc"] ]
+
+  
+  SubnetPublic1:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      AvailabilityZone: eu-central-1a 
+      CidrBlock: 172.0.1.0/24
+      MapPublicIpOnLaunch: "True"
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "subnet", "public"] ]
+      VpcId: 
+        Ref: VPC
+
+  SubnetPublic2:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      AvailabilityZone: eu-central-1b 
+      CidrBlock: 172.0.2.0/24
+      MapPublicIpOnLaunch: "True"
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "subnet", "public"] ]
+      VpcId: 
+        Ref: VPC
+
+  SubnetPublic3:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      AvailabilityZone: eu-central-1c 
+      CidrBlock: 172.0.3.0/24
+      MapPublicIpOnLaunch: "True"
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "subnet", "public"] ]
+      VpcId: 
+        Ref: VPC
+
+  SubnetPublic4:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      AvailabilityZone: eu-central-1a
+      CidrBlock: 172.0.4.0/24
+      MapPublicIpOnLaunch: "True"
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "subnet", "public"] ]
+      VpcId: 
+        Ref: VPC
+
+  SubnetPrivate1:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      AvailabilityZone: eu-central-1b
+      CidrBlock: 172.0.5.0/24
+      MapPublicIpOnLaunch: "False"
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "subnet", "private"] ]
+      VpcId: 
+        Ref: VPC
+
+  SubnetPrivate2:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      AvailabilityZone: eu-central-1c
+      CidrBlock: 172.0.6.0/24
+      MapPublicIpOnLaunch: "False"
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "subnet", "private"] ]
+      VpcId: 
+        Ref: VPC
+
+  SubnetPrivate3:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      AvailabilityZone: eu-central-1a
+      CidrBlock: 172.0.7.0/24
+      MapPublicIpOnLaunch: "False"
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "subnet", "private"] ]
+      VpcId: 
+        Ref: VPC
+
+  SubnetPrivate4:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      AvailabilityZone: eu-central-1b
+      CidrBlock: 172.0.8.0/24
+      MapPublicIpOnLaunch: "False"
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "subnet", "private"] ]
+      VpcId: 
+        Ref: VPC
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "routetable", "public"] ]
+      VpcId: 
+        Ref: VPC
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "routetable", "private"] ]
+      VpcId: 
+        Ref: VPC
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "igw"] ]
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  CustomRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: SubnetPublic1
+      RouteTableId:
+        Ref: PublicRouteTable
+
+  PublicSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: SubnetPublic2
+      RouteTableId:
+        Ref: PublicRouteTable
+
+  PublicSubnetRouteTableAssociation3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: SubnetPublic3
+      RouteTableId:
+        Ref: PublicRouteTable
+
+  PublicSubnetRouteTableAssociation4:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: SubnetPublic4
+      RouteTableId:
+        Ref: PublicRouteTable
+
+  PrivateSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: SubnetPrivate1
+      RouteTableId:
+        Ref: PrivateRouteTable
+
+  PrivateSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: SubnetPrivate2
+      RouteTableId:
+        Ref: PrivateRouteTable
+
+  PrivateSubnetRouteTableAssociatio3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: SubnetPrivate3
+      RouteTableId:
+        Ref: PrivateRouteTable
+
+  PrivateSubnetRouteTableAssociation4:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: SubnetPrivate4
+      RouteTableId:
+        Ref: PrivateRouteTable
+
+Outputs:
+
+  VPCID:
+    Description: The VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter", AccountVPC ] ]
+  
+  VPCCIDR:
+    Description: The VPC ID
+    Value: !GetAtt VPC.CidrBlock
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter", AccountVPC, CIDR  ] ]
+
+  SubnetPublic1:
+    Description: The Subnet ID
+    Value: !Ref SubnetPublic1
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter", SubnetPublic1  ] ]
+
+  SubnetPublic2:
+    Description: The Subnet ID
+    Value: !Ref SubnetPublic2
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter", SubnetPublic2  ] ]
+
+  SubnetPublic3:
+    Description: The Subnet ID
+    Value: !Ref SubnetPublic3
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter", SubnetPublic3  ] ]
+
+  SubnetPublic4:
+    Description: The Subnet ID
+    Value: !Ref SubnetPublic4
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter", SubnetPublic4  ] ]
+
+  SubnetPrivate1:
+    Description: The Subnet ID
+    Value: !Ref SubnetPrivate1
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter", SubnetPrivate1  ] ]
+
+
+  SubnetPrivate2:
+    Description: The Subnet ID
+    Value: !Ref SubnetPrivate2
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter", SubnetPrivate2  ] ]
+
+  SubnetPrivate3:
+    Description: The Subnet ID
+    Value: !Ref SubnetPrivate3
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter", SubnetPrivate3  ] ]
+
+  SubnetPrivate4:
+    Description: The Subnet ID
+    Value: !Ref SubnetPrivate4
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter", !Ref "ENVNameParameter", SubnetPrivate4  ] ]
+
+  ProductName:
+    Description: The Subnet ID
+    Value: !Ref ProductNameParameter
+    Export:
+      Name: !Join [ ":", [ !Ref "ProductNameParameter",  !Ref "ENVNameParameter", ProductName ] ]
+
+  EmptyValue:
+    Description: The Empty Value
+    Value: "Empty"

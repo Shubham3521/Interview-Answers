@@ -1,0 +1,514 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Creates the following resources:
+    - EFS
+    - EFSMount
+    - EFSSG
+
+
+Parameters:
+
+
+  ProductNameParameter:
+    Type: String
+    Description: Enter Product for tagging purpose.
+
+  ENVNameParameter:
+    Type: String
+    AllowedValues:
+      - prod
+      - stage
+      - qa
+      - demo
+    Description: Enter Env.
+
+
+
+
+
+Resources:
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties: 
+      ClusterName:  !Join [ "-", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "ECS-Cluster" ]  ]
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+              Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ "-", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "ECS-Cluster"] ]
+  
+  TargetGroupWebApp:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId:
+        Fn::ImportValue:
+          !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "AccountVPC"  ] ]
+      Port: 80
+      Protocol: HTTP
+      Name: !Join [ "-", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "TargetGroup", WebApp] ]
+      Matcher:
+        HttpCode: 200-499
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      TargetType: ip
+      Protocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+              Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ "-", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "TargetGroup", WebApp] ]
+
+  WebAppListenerHTTP:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroupWebApp
+      LoadBalancerArn:
+        Fn::ImportValue:
+          !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "ApplicationLBMain"  ] ]
+      Port: '80'
+      Protocol: HTTP
+
+  WebAppListenerHTTPS:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroupWebApp
+      LoadBalancerArn:
+        Fn::ImportValue:
+          !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "ApplicationLBMain"  ] ]
+      Port: '443'
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: "arn:aws:acm:us-east-1:077456353840:certificate/e129acba-76e8-4be8-9605-24c5149009de"
+
+  WebAppHTTPRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - RedirectConfig:
+            Host: "#{host}"
+            Path: "/#{path}"
+            Port: 443
+            Protocol: "HTTPS"
+            Query:  "#{query}" 
+            StatusCode: HTTP_301
+          Type: "redirect"
+      Conditions:
+        - Field: path-pattern
+          Values: 
+            - /*
+      ListenerArn: !Ref WebAppListenerHTTP
+      Priority: 1
+
+  WebAppHTTPSRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref 'TargetGroupWebApp'
+          Type: "forward"
+      Conditions:
+        - Field: path-pattern
+          Values: 
+            - /app/*
+      ListenerArn: !Ref WebAppListenerHTTPS
+      Priority: 1
+
+  WebAppSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: WebApp Security Group
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 0
+        ToPort: 65535
+        CidrIp: 10.0.0.0/16
+      VpcId: 
+        Fn::ImportValue:
+          !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "AccountVPC"  ] ]
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "WebAppSG"] ]
+
+
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - WebAppHTTPRule
+      - WebAppHTTPSRule
+    Properties:
+      ServiceName:
+        !Join [ "-", [ Ref: ProductNameParameter,Ref: ENVNameParameter, WebApp] ]
+      Cluster: !Ref ECSCluster
+      LaunchType: FARGATE
+      DesiredCount: 1
+      PlatformVersion: "1.3.0"
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !Ref WebAppSG
+          Subnets:
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic1"  ] ]
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic2"  ] ]
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic3"  ] ]
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic4"  ] ]
+          AssignPublicIp: ENABLED
+      TaskDefinition:
+        Fn::ImportValue:
+          !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "WebApp", "TaskDefinition"  ] ]  
+      LoadBalancers:
+        - ContainerName: "xxxxxweb"
+          ContainerPort: 80
+          TargetGroupArn: !Ref TargetGroupWebApp
+
+
+  TargetGroupGuacamoleUI:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId:
+        Fn::ImportValue:
+          !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "AccountVPC"  ] ]
+      Port: 80
+      Protocol: HTTP
+      Name: !Join [ "-", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "TG", "GuacamoleUI"] ]
+      Matcher:
+        HttpCode: 200-499
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      TargetType: ip
+      Protocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+              Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ "-", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "TargetGroup", GroupGuacamoleUI] ]         
+
+  GuacamoleUIHTTPSRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref 'TargetGroupGuacamoleUI'
+          Type: "forward"
+      Conditions:
+        - Field: path-pattern
+          Values: 
+            - /guacamole/*
+      ListenerArn: !Ref WebAppListenerHTTPS
+      Priority: 3
+
+  LTIHTTPSRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref 'TargetGroupWebApp'
+          Type: "forward"
+      Conditions:
+        - Field: path-pattern
+          Values: 
+            - /lti/*
+      ListenerArn: !Ref WebAppListenerHTTPS
+      Priority: 2
+
+
+  GucamoleUISG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: GucamoleUISG Security Group
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 0
+        ToPort: 65535
+        CidrIp: 10.0.0.0/16
+      VpcId: 
+        Fn::ImportValue:
+          !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "AccountVPC"  ] ]
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "GucamoleUISG"] ]
+
+  GuacamoleUIService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - WebAppHTTPRule
+      - WebAppHTTPSRule
+    Properties:
+      ServiceName:
+        !Join [ "-", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "GuacamoleUI"] ]
+      Cluster: !Ref ECSCluster
+      LaunchType: FARGATE
+      DesiredCount: 1
+      PlatformVersion: "1.4.0"
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !Ref GucamoleUISG
+          Subnets:
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic1"  ] ]
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic2"  ] ]
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic3"  ] ]
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic4"  ] ]
+          AssignPublicIp: ENABLED
+      TaskDefinition:
+        Fn::ImportValue:
+          !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "Guacamole", "TaskDefinition"  ] ]  
+      LoadBalancers:
+        - ContainerName: "guacamole-ui"
+          ContainerPort: 8080
+          TargetGroupArn: !Ref "TargetGroupGuacamoleUI"
+
+  WorkerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Worker Security Group
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 0
+        ToPort: 65535
+        CidrIp: 10.0.0.0/16
+      VpcId: 
+        Fn::ImportValue:
+          !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "AccountVPC"  ] ]
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "Worker"] ]
+
+  WorkerService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - WebAppHTTPRule
+      - WebAppHTTPSRule
+    Properties:
+      ServiceName:
+        !Join [ "-", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "Worker"] ]
+      Cluster: !Ref ECSCluster
+      LaunchType: FARGATE
+      DesiredCount: 1
+      PlatformVersion: "1.4.0"
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !Ref WorkerSG
+          Subnets:
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic1"  ] ]
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic2"  ] ]
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic3"  ] ]
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic4"  ] ]
+          AssignPublicIp: ENABLED
+      TaskDefinition:
+        Fn::ImportValue:
+          !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "WorkerApp", "TaskDefinition"  ] ]  
+
+  BeatSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Beat Security Group
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 0
+        ToPort: 65535
+        CidrIp: 10.0.0.0/16
+      VpcId: 
+        Fn::ImportValue:
+          !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "AccountVPC"  ] ]
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "Beat"] ]
+
+  BeatService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - WebAppHTTPRule
+      - WebAppHTTPSRule
+    Properties:
+      ServiceName:
+        !Join [ "-", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "Beat"] ]
+      Cluster: !Ref ECSCluster
+      LaunchType: FARGATE
+      DesiredCount: 1
+      PlatformVersion: "1.4.0"
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !Ref BeatSG
+          Subnets:
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic1"  ] ]
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic2"  ] ]
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic3"  ] ]
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic4"  ] ]
+          AssignPublicIp: ENABLED
+      TaskDefinition:
+        Fn::ImportValue:
+          !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "Beat", "TaskDefinition"  ] ]  
+
+  TargetGroupGuacd:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId:
+        Fn::ImportValue:
+          !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "AccountVPC"  ] ]
+      Port: 4822
+      Protocol: TCP
+      Name: !Join [ "-", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "TargetGroup", guacd] ]
+      TargetType: ip
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+              Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ "-", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "TargetGroup", guacd] ]
+
+  GuacdListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroupGuacd
+      LoadBalancerArn:
+        Fn::ImportValue:
+          !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "NetworkLBGuacd"  ] ]
+      Port: 4822
+      Protocol: TCP
+
+  GuacdService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - WebAppHTTPRule
+      - WebAppHTTPSRule
+    Properties:
+      ServiceName:
+        !Join [ "-", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "Guacd"] ]
+      Cluster: !Ref ECSCluster
+      LaunchType: FARGATE
+      DesiredCount: 1
+      PlatformVersion: "1.3.0"
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !Ref GuacdSG
+          Subnets:
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic1"  ] ]
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic2"  ] ]
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic3"  ] ]
+            - Fn::ImportValue:
+                !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "SubnetPublic4"  ] ]
+          AssignPublicIp: ENABLED
+      TaskDefinition:
+        Fn::ImportValue:
+          !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "Guacd", "TaskDefinition"  ] ]  
+      LoadBalancers:
+        - ContainerName: "guacd"
+          ContainerPort: 4822
+          TargetGroupArn: !Ref "TargetGroupGuacd"
+
+  GuacdSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Guacd Security Group
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 0
+        ToPort: 65535
+        CidrIp: 10.0.0.0/16
+      VpcId: 
+        Fn::ImportValue:
+          !Join [ ":", [  !Ref "ProductNameParameter",!Ref "ENVNameParameter", "AccountVPC"  ] ]
+      Tags: 
+        - Key: "Product"
+          Value:
+            Ref: ProductNameParameter
+        - Key: "Env"
+          Value:
+             Ref: ENVNameParameter
+        - Key: "Name"
+          Value:
+            !Join [ ":", [ Ref: ProductNameParameter,Ref: ENVNameParameter, "Guacd"] ]
